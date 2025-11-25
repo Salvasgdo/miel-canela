@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Inicialización lazy de Resend para evitar errores en build time
+let resend: Resend | null = null;
+
+function getResendClient() {
+  if (!resend) {
+    const apiKey = process.env.RESEND_API_KEY || 'placeholder_key_for_build';
+    resend = new Resend(apiKey);
+  }
+  return resend;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,8 +34,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verificar que la API key esté configurada en producción
+    if (!process.env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY no está configurada');
+      return NextResponse.json(
+        { error: 'Servicio de email no configurado. Por favor contacta al administrador.' },
+        { status: 503 }
+      );
+    }
+
     // Enviar email
-    const data = await resend.emails.send({
+    const resendClient = getResendClient();
+    const data = await resendClient.emails.send({
       from: 'Miel Canela Web <onboarding@resend.dev>', // Cambiar cuando tengas dominio verificado
       to: [process.env.CONTACT_EMAIL || 'info@mielcanela.com'],
       replyTo: email,
